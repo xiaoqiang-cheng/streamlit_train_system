@@ -1,0 +1,5 @@
+__pycache__/
+dataset/
+log/
+model_deploy_save/
+task_info/
