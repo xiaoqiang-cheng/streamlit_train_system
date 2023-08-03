@@ -21,6 +21,21 @@ train_machine_tool_dir = {
     "10.9.160.200":  "",
 }
 
+launch_train_template = '''
+#!/bin/bash
+rm -r dataset/**/*cache
+
+source ~/.bashrc
+source ~/.zshrc
+
+set -e
+conda activate yolov7
+tensorboard --logdir runs/train --port 6001 --bind_all
+python gen_data_yaml.py
+python train.py --workers $worker_num --device $device_num --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --hyp data/hyp.finetune.yaml --weights $base_model
+killall tensorboard
+'''
+
 machine_info = {
     "xavier" : ["worker@10.0.93.199", "uisee", "22"],
     "tx2" : ["worker@10.0.93.200", "uisee", "22"],
