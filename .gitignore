@@ -4,3 +4,8 @@ log/
 model_deploy_save/
 task_info/
 model_repo
+temp/
+template
+*.pkl
+download_result/
+template/

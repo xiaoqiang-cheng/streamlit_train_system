@@ -33,7 +33,6 @@ conda activate yolov7
 tensorboard --logdir runs/train --port 6001 --bind_all
 python gen_data_yaml.py
 python train.py --workers $worker_num --device $device_num --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --hyp data/hyp.finetune.yaml --weights $base_model
-killall tensorboard
 '''
 
 machine_info = {
@@ -68,13 +67,15 @@ supply_choice = {
     "8155" :  ["todo"]
 }
 
-
-
 MODEL_DEPLOY_SAVE_DIR = "model_deploy_save"
 TASK_INFO_DIR = "task_info"
 LOG_DIR = "log"
 MODEL_REPO_DIR = "model_repo"
 DATASET_DIR = "dataset"
+UPLOAD_TMP_DIR = "temp"
+TEMPLATE_DIR = "template"
+DOWNLOAD_RESULT = "download_result"
+
 
 
 
@@ -88,3 +89,7 @@ if_not_exist_create(TASK_INFO_DIR)
 if_not_exist_create(LOG_DIR)
 if_not_exist_create(MODEL_REPO_DIR)
 if_not_exist_create(DATASET_DIR)
+if_not_exist_create(UPLOAD_TMP_DIR)
+if_not_exist_create(TEMPLATE_DIR)
+if_not_exist_create(DOWNLOAD_RESULT)
+
