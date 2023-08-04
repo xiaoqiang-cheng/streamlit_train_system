@@ -22,7 +22,6 @@ st.set_page_config(layout="wide",
             page_icon="📡",
             )
 
-# st_autorefresh(interval=2000, key="light_model_train")
 
 def creat_train_pipeline(nodes = [], progress = 0):
     elements = []
@@ -179,7 +178,6 @@ def submit_train_task():
         SEND_LOG_MSG.info("clear cache and stop train task.")
         os.system("rm -r train_task_progress.pkl")
     else:
-        import copy
         st.session_state.task_status = True
         st.info("正在启动训练，请勿重复点击...")
         # need start task, write
@@ -196,7 +194,10 @@ def submit_train_task():
             f.write(last_launch_script)
         if not os.path.exists("train_task_progress.pkl"):
             st.session_state.task_progress = 0
-            exec_script_task("remote_train")
+            exec_script_task("remote_train",
+                ['--email', st.session_state.user_email,
+                '--remote-ip', st.session_state.target_train_machine,
+                '--project', st.session_state.target_train_project_name])
         else:
             SEND_LOG_MSG.warning("have launch train, do not click again!")
 
@@ -249,7 +250,7 @@ def main_ui_layout():
                     default=False,
                 )
             },
-            width = 500,
+            width = 400,
             height = 1500,
             disabled=["dataset", "tag", "train", "val"],
             hide_index=False,
@@ -270,9 +271,9 @@ def main_ui_layout():
                     task_button_label = "停止训练"
                 else:
                     task_button_label = "开始训练"
-                start_train_button = st.button(task_button_label, use_container_width=True)
-                if start_train_button:
-                    submit_train_task()
+                start_train_button = st.button(task_button_label, on_click=submit_train_task, use_container_width=True)
+                # if start_train_button:
+                #     submit_train_task()
 
                 st.markdown("[%s](http://%s)"%("查看TensorBoard",
                     st.session_state.target_train_machine + ":6001"),
@@ -298,8 +299,9 @@ def main_ui_layout():
 
         with col2:
             with st.expander("查看训练进度", expanded=True):
-                creat_train_pipeline(["启动流程", "数据同步", "更新模型", "量化部署", "发送邮件", "结束流程"],
-                                        st.session_state.task_progress)
+                    creat_train_pipeline(["启动流程", "数据同步", "更新模型", "量化部署", "发送邮件", "结束流程"],
+                                st.session_state.task_progress)
+
 
 def test():
     pass
@@ -311,5 +313,5 @@ def main():
 
 
 main()
-serialize_data(st.session_state.to_dict, "database.pkl")
+# serialize_data(st.session_state.to_dict, "database.pkl")
 

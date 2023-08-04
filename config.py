@@ -12,7 +12,7 @@ train_machine_info = {
 
 train_machine_tool_dir = {
     "10.0.93.231" :  "/home/uisee/MainDisk/TrafficLight/yolov7",
-    "10.0.89.150" :  "",
+    "10.0.89.150" :  "/storage/cxq/yolov7",
     "10.9.100.30" :  "",
     "10.9.100.31" :  "",
     "10.9.100.32" :  "",

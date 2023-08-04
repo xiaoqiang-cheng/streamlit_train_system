@@ -37,20 +37,20 @@ def exec_remote_cmd(ctype, cmd, need_return = False):
     else:
         process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE)
     output, error = process.communicate()
+    SEND_LOG_MSG.info(output.decode())
     return output.decode()
 
 
 def get_remote_gpus_info(ctype):
     target_dir = train_machine_tool_dir[ctype]
-    cmd = "cd %s && ./usertools/get_gpus_info.sh"%(target_dir)
+    cmd = "cd %s && bash -i ./usertools/get_gpus_info.sh 2>/dev/null"%(target_dir)
     return exec_remote_cmd(ctype, cmd, need_return = True)
 
 import time
 
 def rsync_remote_dir(passwd, local_path, remote_addr, remote_path, port):
-
     command = "sshpass -p %s rsync -avz --progress -e 'ssh -p %s' %s/ %s:%s"%(passwd, port, local_path, remote_addr, remote_path)
-    print(command)
+    SEND_LOG_MSG.info(command)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
     SEND_LOG_MSG.info(output.decode())
