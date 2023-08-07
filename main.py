@@ -8,11 +8,25 @@ import os
 import pandas as pd
 from streamlit_react_flow import react_flow
 
+
 st.session_state.task_progress = -1
 st.session_state.task_status = False
 
-if os.path.exists("train_task_progress.pkl"):
-    train_task_progress = deserialize_data("train_task_progress.pkl")
+if "rerun" not in st.session_state.keys():
+    st.session_state["rerun"] = True
+    history_config = deserialize_data("database.pkl")
+
+    print("=============================================")
+
+    if history_config is None:
+        pass
+    else:
+        for key, value in history_config.items():
+            st.session_state[key] = value
+
+
+if os.path.exists(PROC_DIR):
+    train_task_progress = deserialize_data(PROC_DIR)
     st.session_state.task_progress = train_task_progress['task_progress']
     st.session_state.task_status = True
 
@@ -170,36 +184,48 @@ def exec_script_task(task_name, args = []):
     SEND_LOG_MSG.info(cmd)
     os.system(cmd)
 
-def submit_train_task():
-    if st.session_state.task_status:
-        # need stop task
-        st.session_state.task_status = False
-        st.info("正在停止训练，请勿重复点击...")
-        SEND_LOG_MSG.info("clear cache and stop train task.")
-        os.system("rm -r train_task_progress.pkl")
-    else:
-        st.session_state.task_status = True
-        st.info("正在启动训练，请勿重复点击...")
+
+def stop_train_task():
+    if not st.session_state.task_status: return
+    # need stop task
+    st.session_state.task_status = False
+    st.session_state.task_progress = -1
+
+    SEND_LOG_MSG.info("clear cache and stop train task.")
+    # kill local process remote process
+    os.system("pkill light_remote_train")
+    os.system("killall ssh")
+    os.system("killall sshpass")
+    # clear cache
+    os.system("rm -r %s"%PROC_DIR)
+
+def start_train_task():
+    if st.session_state.task_status: return
+    st.session_state.task_status = True
+    if not os.path.exists(PROC_DIR):
         # need start task, write
         with open("template/launch_train.sh", "w") as f:
             last_launch_script = launch_train_template
+            selected_dataset_str = " ".join(st.session_state.selected_dataset)
+
+            last_launch_script = last_launch_script.replace("$dataset_list", selected_dataset_str)
             last_launch_script = last_launch_script.replace("$worker_num", st.session_state.target_train_worker_num)
             last_launch_script = last_launch_script.replace("$device_num", st.session_state.target_train_gpu)
             last_launch_script = last_launch_script.replace("$batch_size", st.session_state.target_train_batch_size)
             last_launch_script = last_launch_script.replace("$epoch_num", st.session_state.target_train_epoch)
-            last_launch_script = last_launch_script.replace("$project_name", st.session_state.target_train_epoch)
-            last_launch_script = last_launch_script.replace("$base_model", st.session_state.target_train_base_model)
-
+            last_launch_script = last_launch_script.replace("$project_name", st.session_state.target_train_project_name)
+            last_launch_script = last_launch_script.replace("$base_model", os.path.join(MODEL_REPO_DIR, st.session_state.target_train_base_model + ".pt"))
             SEND_LOG_MSG.info(last_launch_script)
             f.write(last_launch_script)
-        if not os.path.exists("train_task_progress.pkl"):
+
             st.session_state.task_progress = 0
             exec_script_task("remote_train",
                 ['--email', st.session_state.user_email,
                 '--remote-ip', st.session_state.target_train_machine,
-                '--project', st.session_state.target_train_project_name])
-        else:
-            SEND_LOG_MSG.warning("have launch train, do not click again!")
+                '--project', st.session_state.target_train_project_name,
+                '--base-model', st.session_state.target_train_base_model])
+    else:
+        SEND_LOG_MSG.warning("have launch train, do not click again!")
 
 def save_and_utgz_uploaded_file(uploadedfile):
     tgz_name = os.path.join("UPLOAD_TMP_DIR", uploadedfile.name)
@@ -242,7 +268,7 @@ def main_ui_layout():
         st.markdown("-----")
         data_df, scene_num, train_sum, val_sum = dataset_to_pd_frame(st.session_state.dataset)
         st.markdown("**scene_num:** %d\t **train_num:** %d\t **val_sum:** %d"%(scene_num, train_sum, val_sum))
-        st.data_editor(
+        dataset_table_list = st.data_editor(
             data_df,
             column_config={
                 "enable": st.column_config.CheckboxColumn(
@@ -256,6 +282,9 @@ def main_ui_layout():
             hide_index=False,
         )
 
+        mask = dataset_table_list.enable == True
+        st.session_state.selected_dataset =list(dataset_table_list.dataset[mask])
+
     with second:
         st.markdown("### 模型训练")
         st.markdown("------")
@@ -267,18 +296,23 @@ def main_ui_layout():
                     st.info("请输入有效的邮箱地址！")
                     return
 
-                if st.session_state.task_status:
-                    task_button_label = "停止训练"
+                start_train_button = st.checkbox("开始训练", value=st.session_state.task_status)
+                if start_train_button:
+                    st.info("已经执行开始训练，请勿重复点击...")
+                    start_train_task()
                 else:
-                    task_button_label = "开始训练"
-                start_train_button = st.button(task_button_label, on_click=submit_train_task, use_container_width=True)
-                # if start_train_button:
-                #     submit_train_task()
+                    st.info("休息中...")
+                    stop_train_task()
 
                 st.markdown("[%s](http://%s)"%("查看TensorBoard",
                     st.session_state.target_train_machine + ":6001"),
                                 unsafe_allow_html=True)
 
+
+                if len(st.session_state.selected_dataset) == 0:
+                    selected_dataset_str = "all"
+                else:
+                    selected_dataset_str = len(st.session_state.selected_dataset)
                 train_summary_info = '''
                     ##### light train system summary: \n
                         email  : %s;\n
@@ -287,13 +321,15 @@ def main_ui_layout():
                         GPUS   : %s;\n
                         Batch  : %s;\n
                         Epoch  : %s;\n
+                        Dataset: %s;\n
                 '''%(
                     st.session_state.user_email,
                     st.session_state.target_train_project_name,
                     st.session_state.target_train_machine,
                     st.session_state.target_train_gpu,
                     st.session_state.target_train_batch_size,
-                    st.session_state.target_train_epoch
+                    st.session_state.target_train_epoch,
+                    selected_dataset_str
                 )
                 st.info(train_summary_info)
 
@@ -313,5 +349,5 @@ def main():
 
 
 main()
-# serialize_data(st.session_state.to_dict, "database.pkl")
+serialize_data(st.session_state.to_dict(), "database.pkl")
 

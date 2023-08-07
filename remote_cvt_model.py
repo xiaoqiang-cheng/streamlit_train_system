@@ -4,7 +4,7 @@ import os
 from config import *
 import multiprocessing
 from send import send_mail_personal
-
+from utils import *
 
 def push_file(local_path, remote_addr, remote_path, passwd, port):
     command = "sshpass -p %s scp -r -P %s %s %s:%s"%(passwd, port, local_path, remote_addr, remote_path)
@@ -35,16 +35,17 @@ def exec_remote_cmd(ctype, cmd):
     output, error = process.communicate()
     return True
 
-def exec_onnx2trt(onnx_name, machine_type, etype = TRT4_INDEX):
+def exec_onnx2trt(onnx_name, machine_type, etype = TRT4_INDEX, target_save_path = MODEL_DEPLOY_SAVE_DIR):
     SEND_LOG_MSG.info("start [%s] cvt [%s] [%s] process"%(onnx_name, machine_type, engine_type_str[etype]))
     tool_path = machine_tool_dir[machine_type][etype]
-    onnx_path = os.path.join(MODEL_DEPLOY_SAVE_DIR, onnx_name)
-    trt_path = os.path.join(MODEL_DEPLOY_SAVE_DIR, onnx_name + ".bin")
+
+    onnx_path = os.path.join(target_save_path, onnx_name)
+    trt_path = os.path.join(target_save_path, onnx_name + ".bin")
     remote_addr, pwd, port = machine_info[machine_type]
 
-    remote_onnx_path = os.path.join(tool_path, onnx_path)
-    remote_trt_path = os.path.join(tool_path, trt_path)
-    local_trt_path = os.path.join(MODEL_DEPLOY_SAVE_DIR,
+    remote_onnx_path = os.path.join(tool_path, os.path.join(MODEL_DEPLOY_SAVE_DIR, onnx_name))
+    remote_trt_path = os.path.join(tool_path, os.path.join(MODEL_DEPLOY_SAVE_DIR, onnx_name + ".bin"))
+    local_trt_path = os.path.join(target_save_path,
                 onnx_name + ".%s"%machine_type + ".%s"%engine_type_str[etype] + ".bin")
 
     # first, push model to remote machine
@@ -53,7 +54,7 @@ def exec_onnx2trt(onnx_name, machine_type, etype = TRT4_INDEX):
         SEND_LOG_MSG.error("push file error, please check network or onnx file")
         return None
     # second, start to cvt model
-    cmd = "cd %s && ./onnx2trt.sh %s"%(tool_path, onnx_path)
+    cmd = "cd %s && ./onnx2trt.sh %s"%(tool_path, remote_onnx_path)
     status = exec_remote_cmd(machine_type, cmd)
     if not status:
         SEND_LOG_MSG.error("cvt model error, please check remote machine")
@@ -73,10 +74,10 @@ def exec_thread(params):
 
 
 
-def engine_cvt_pipeline(onnx_name, candidate_list):
+def engine_cvt_pipeline(onnx_name, candidate_list, target_save_path = MODEL_DEPLOY_SAVE_DIR):
     need_cvt_list = []
     for c in candidate_list:
-        need_cvt_list.append([onnx_name, c[0], engine_type_str.index(c[1])])
+        need_cvt_list.append([onnx_name, c[0], engine_type_str.index(c[1]), target_save_path])
         SEND_LOG_MSG.info("cvt model detail: %s"%(str(need_cvt_list[-1])))
 
     p = multiprocessing.Pool(len(need_cvt_list))

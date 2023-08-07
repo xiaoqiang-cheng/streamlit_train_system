@@ -5,7 +5,7 @@ from config import *
 import multiprocessing
 from send import send_mail_personal
 from utils import *
-
+from remote_cvt_model import engine_cvt_pipeline
 
 def push_file(local_path, remote_addr, remote_path, passwd, port):
     command = "sshpass -p %s scp -r -P %s %s %s:%s"%(passwd, port, local_path, remote_addr, remote_path)
@@ -35,10 +35,28 @@ def exec_remote_cmd(ctype, cmd, need_return = False):
     if need_return:
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     else:
-        process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE)
+        process = subprocess.Popen(command, shell=True)
     output, error = process.communicate()
-    SEND_LOG_MSG.info(output.decode())
-    return output.decode()
+
+    if need_return:
+        SEND_LOG_MSG.info(output.decode())
+        return output.decode()
+    else:
+        pass
+
+def check_remote_file_exist(ctype, file_path):
+    remote_addr, pwd, port = train_machine_info[ctype]
+    command = "sshpass -p %s ssh -p%s %s \"%s\""%(pwd, port, remote_addr, "ls %s"%file_path)
+    SEND_LOG_MSG.info(command)
+    process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE)
+    output, error = process.communicate()
+
+    if error.decode() == "":
+        return True
+    else:
+        return False
+
+
 
 
 def get_remote_gpus_info(ctype):
@@ -46,7 +64,6 @@ def get_remote_gpus_info(ctype):
     cmd = "cd %s && bash -i ./usertools/get_gpus_info.sh 2>/dev/null"%(target_dir)
     return exec_remote_cmd(ctype, cmd, need_return = True)
 
-import time
 
 def rsync_remote_dir(passwd, local_path, remote_addr, remote_path, port):
     command = "sshpass -p %s rsync -avz --progress -e 'ssh -p %s' %s/ %s:%s"%(passwd, port, local_path, remote_addr, remote_path)
@@ -54,69 +71,206 @@ def rsync_remote_dir(passwd, local_path, remote_addr, remote_path, port):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
     SEND_LOG_MSG.info(output.decode())
+    if error.decode() == "":
+        return True
+    else:
+        return False
 
 def data_sync(remote_ip):
     remote_addr, passwd, port = train_machine_info[remote_ip]
     local_path = "dataset"
     remote_path = os.path.join(train_machine_tool_dir[remote_ip], local_path)
-    rsync_remote_dir(passwd, local_path, remote_addr, remote_path, port)
+    ret = rsync_remote_dir(passwd, local_path, remote_addr, remote_path, port)
+    if not ret:
+        SEND_LOG_MSG.error("sync data error!")
+        return False
+    return True
 
-def launch_train():
-    time.sleep(10)
+def launch_train(remote_ip, base_model):
+    remote_addr, passwd, port = train_machine_info[remote_ip]
+    remote_path = train_machine_tool_dir[remote_ip]
 
-def model_deploy():
-    time.sleep(10)
+    local_base_model_path = os.path.join(MODEL_REPO_DIR, base_model, "best.pt")
+    remote_base_model_path = os.path.join(remote_path, MODEL_REPO_DIR, base_model + ".pt")
 
-def send_email():
-    time.sleep(10)
+    SEND_LOG_MSG.info("copy base model to remote end")
+    ret = push_file(local_base_model_path, remote_addr, remote_base_model_path, passwd, port)
+    if not  ret:
+        SEND_LOG_MSG.error("copy Model ERROR")
+        return False
+    # copy train script to remote end
+    SEND_LOG_MSG.info("copy launch_train.sh to remote end")
+    ret = push_file(os.path.join(TEMPLATE_DIR, "launch_train.sh"), remote_addr, remote_path, passwd, port)
+    if not  ret:
+        SEND_LOG_MSG.error("copy Model ERROR")
+        return False
+    cmd = "cd %s && bash -i launch_train.sh"%(remote_path)
+    exec_remote_cmd(remote_ip, cmd)
 
-def main(email, remote_ip, project_name):
-    # provide double exec
-    if os.path.exists("train_task_progressremote_ip.pkl"):
+    return True
+
+
+
+def model_deploy(remote_ip, project_name):
+    remote_path = train_machine_tool_dir[remote_ip]
+    remote_model_rel_path = os.path.join("runs", "train", project_name, "weights")
+    remote_pt_model_rel_path = os.path.join(remote_model_rel_path, "best.pt")
+    remote_pt_model_abs_path = os.path.join(remote_path, remote_pt_model_rel_path)
+
+    # check remote best.pt
+    ret = check_remote_file_exist(remote_ip, remote_pt_model_abs_path)
+    if not ret:
+        SEND_LOG_MSG.error("remote best weights not exists, train could be stop: [%s]"%remote_pt_model_abs_path)
+        return False
+
+    # first, ready dir
+    # local
+    local_model_path = os.path.join(MODEL_REPO_DIR, project_name)
+    if not os.path.exists(local_model_path):
+        os.makedirs(local_model_path)
+
+    remote_onnx_model_rel_path = os.path.join(remote_model_rel_path, "best_op9.onnx")
+
+    remote_result_abs_path = os.path.join(remote_path, remote_model_rel_path, "..", "results.txt")
+    remote_onnx_model_abs_path = os.path.join(remote_path, remote_onnx_model_rel_path)
+
+    SEND_LOG_MSG.info("ready to export onnx")
+    # export onnx
+    cmd = "cd %s && bash -i %s %s"%(remote_path, "./usertools/export_onnx.sh", remote_pt_model_rel_path)
+    exec_remote_cmd(remote_ip, cmd)
+
+    remote_addr, passwd, port = train_machine_info[remote_ip]
+
+    SEND_LOG_MSG.info("ready to copy train content into local")
+    # copy to local
+    ret = pull_file(local_model_path, remote_addr, remote_result_abs_path, passwd, port)
+    if not ret:
+        SEND_LOG_MSG.error("Failed to pull result: [%s]"%remote_result_abs_path)
+        return False
+    ret = pull_file(local_model_path, remote_addr, remote_onnx_model_abs_path, passwd, port)
+    if not ret:
+        SEND_LOG_MSG.error("Failed to pull onnx: [%s]"%remote_onnx_model_abs_path)
+        return False
+    ret = pull_file(local_model_path, remote_addr, remote_pt_model_abs_path, passwd, port)
+    if not ret:
+        SEND_LOG_MSG.error("Failed to pull pt model: [%s]"%remote_pt_model_abs_path)
+        return False
+
+    candidate_list = [
+        ["xavier", "trt8"],
+        ["tx2", "trt4"],
+        ["1080ti", "trt4"],
+    ]
+
+    SEND_LOG_MSG.info("ready to copy cvt onnx model")
+    # cvt to engine
+    ret_local_path = engine_cvt_pipeline("best_op9.onnx", candidate_list, local_model_path)
+    SEND_LOG_MSG.info(ret_local_path)
+    SEND_LOG_MSG.info("all done!")
+    return True
+
+def text_to_html(text):
+    # 替换空格和制表符为HTML实体
+    text = text.replace(' ', '&nbsp;').replace('\t', '&emsp;')
+
+    # 替换换行符为HTML换行标签
+    text = text.replace('\n', '<br>')
+
+    # 使用<pre>标签来保留文本的格式
+    html_text = f'<pre>{text}</pre>'
+
+    return html_text
+
+def send_email(email, project_name):
+    local_model_path = os.path.join(MODEL_REPO_DIR, project_name)
+    subject = "Model Train System: Please Check Your Model Train Result by [%s]"%project_name
+
+    email_content = '''
+Dear %s,
+    I've finished train task for you, and guys, that was quite a task (mischievous).
+    You can download it from this website: http://%s:22222/
+
+        user email: %s;
+        project   : %s;
+
+    Wishing you a day full of magic and wonder!
+Love,
+Cheng
+                '''%(
+                    email.split('@')[0],
+                    HOST_IP,
+                    email,
+                    project_name
+                )
+
+    send_flag = send_mail_personal('lpci@uisee.com',
+        [email],
+        text_to_html(email_content),
+        ["task_info/remote_train.out"],
+        subject
+    )
+
+    SEND_LOG_MSG.info("Send Email Done!")
+    return send_flag
+
+def main(email, remote_ip, project_name, base_model):
+    if os.path.exists(PROC_DIR):
+        SEND_LOG_MSG.error("remote train has been execed!")
         return
-
     train_task_progress = {}
-
     train_task_progress["task_progress"] = 0
-    serialize_data(train_task_progress, "train_task_progress.pkl")
-
+    serialize_data(train_task_progress, PROC_DIR)
     # 数据同步
     train_task_progress["task_progress"] = 1
     SEND_LOG_MSG.info("ready to data sync.")
-    data_sync(remote_ip)
-    serialize_data(train_task_progress, "train_task_progress.pkl")
+    serialize_data(train_task_progress, PROC_DIR)
+    ret = data_sync(remote_ip)
+
+    if not ret:
+        return False
 
     # 开始训练
     train_task_progress["task_progress"] = 2
     SEND_LOG_MSG.info("ready to launch train")
-    launch_train()
-    serialize_data(train_task_progress, "train_task_progress.pkl")
+    serialize_data(train_task_progress, PROC_DIR)
+    ret = launch_train(remote_ip, base_model)
+    if not ret:
+        return False
 
     #量化部署
     train_task_progress["task_progress"] = 3
     SEND_LOG_MSG.info("ready to deploy")
-    model_deploy()
-    serialize_data(train_task_progress, "train_task_progress.pkl")
+    serialize_data(train_task_progress, PROC_DIR)
+    ret = model_deploy(remote_ip, project_name)
+    if not ret:
+        return False
 
     #发送邮件
     train_task_progress["task_progress"] = 4
     SEND_LOG_MSG.info("ready to send email")
-    send_email()
-    serialize_data(train_task_progress, "train_task_progress.pkl")
+    serialize_data(train_task_progress, PROC_DIR)
+    ret = send_email(email, project_name)
+    if not ret:
+        return False
+
+
     train_task_progress["task_progress"] = -1
-    serialize_data(train_task_progress, "train_task_progress.pkl")
+    serialize_data(train_task_progress, PROC_DIR)
     SEND_LOG_MSG.info("pipe done")
 
 
 if __name__=="__main__":
 
     import argparse
+    import setproctitle
+    setproctitle.setproctitle("light_remote_train")
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--email', type=str, default="xiaoqiang.cheng@uisee.com")
     parser.add_argument('--remote-ip', type=str, default="10.0.93.231")
     parser.add_argument('--project', type=str, default="uisee")
+    parser.add_argument('--base-model', type=str, default="base_model")
+
     args = parser.parse_args()
 
-
-
-    main(args.email, args.remote_ip, args.project)
+    main(args.email, args.remote_ip, args.project, args.base_model)

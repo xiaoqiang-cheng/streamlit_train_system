@@ -1,4 +1,6 @@
 
+HOST_IP = "10.0.93.231"
+
 train_machine_info = {
     "10.0.93.231" : ["uisee@10.0.93.231",   "8888",         "22"],
     "10.0.89.150" : ["test@10.0.89.150",    "test135",      "22"],
@@ -23,16 +25,22 @@ train_machine_tool_dir = {
 
 launch_train_template = '''
 #!/bin/bash
+echo "remove history cache"
 rm -r dataset/**/*cache
 
-source ~/.bashrc
-source ~/.zshrc
-
-set -e
+echo "activate python env"
 conda activate yolov7
-tensorboard --logdir runs/train --port 6001 --bind_all
-python gen_data_yaml.py
+
+echo "gen lastly data yaml"
+python gen_data_yaml.py $dataset_list
+
+echo "launch tensorboard"
+killall tensorboard
+tensorboard --logdir runs/train --port 6001 --bind_all &
+
+echo "launch_train"
 python train.py --workers $worker_num --device $device_num --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --hyp data/hyp.finetune.yaml --weights $base_model
+killall tensorboard
 '''
 
 machine_info = {
@@ -75,7 +83,7 @@ DATASET_DIR = "dataset"
 UPLOAD_TMP_DIR = "temp"
 TEMPLATE_DIR = "template"
 DOWNLOAD_RESULT = "download_result"
-
+PROC_DIR = "/dev/shm/train_task_progress.pkl"
 
 
 

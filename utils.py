@@ -51,6 +51,7 @@ def gen_html_footer():
 import pickle
 def serialize_data(data:dict, file_path):
     try:
+        data.pop("rerun")
         data.pop("task_status")
     except:
         pass

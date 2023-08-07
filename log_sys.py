@@ -6,7 +6,7 @@ class XQLOGHandler(object):
         logger = logging.getLogger('[CYBERXQ]')
         logger.setLevel(logging.DEBUG)
         # 创建文件处理程序
-        file_handler = logging.FileHandler('log/model_deploy.log')
+        file_handler = logging.FileHandler('log/model_train.log')
         file_handler.setLevel(logging.DEBUG)
 
         # 创建控制台处理程序

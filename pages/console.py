@@ -1,10 +1,14 @@
 
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 
+
+st.set_page_config(layout="wide",
+            page_title="Light Train System",
+            page_icon="📡",
+            )
 
 with st.spinner():
     taskinfo = st.code("start train task:")
-    with open("log/model_deploy.log", "r") as f:
+    with open("task_info/remote_train.out", "r") as f:
         console_str = f.read()
     taskinfo.text(console_str)
