@@ -230,35 +230,38 @@ def start_train_task():
         SEND_LOG_MSG.warning("have launch train, do not click again!")
 
 def save_and_utgz_uploaded_file(uploadedfile):
-    tgz_name = os.path.join("UPLOAD_TMP_DIR", uploadedfile.name)
+    tgz_name = os.path.join(UPLOAD_TMP_DIR, uploadedfile.name)
     with open(tgz_name, "wb") as f:
         f.write(uploadedfile.getbuffer())
     os.system("tar -xf %s -C %s"%(tgz_name, DATASET_DIR))
-    return st.success("Saved file :{} in tempDir".format(uploadedfile.name))
+    return st.success("upload successful, save to %s"%DATASET_DIR)
+
+def update_dataset_table():
+    folders = os.listdir(DATASET_DIR)
+    for f in folders:
+        if "dataset" in f:
+            try:
+                with open(os.path.join(DATASET_DIR, f, "tag"), "r") as fi:
+                    tag = fi.read().replace("\n", "")
+            except:
+                tag = "CAN NOT FIND"
+
+            with open(os.path.join(DATASET_DIR, f, "train.txt"), "r") as fi:
+                tmp = fi.readlines()
+                train_num = len(tmp)
+            with open(os.path.join(DATASET_DIR, f, "val.txt"), "r") as fi:
+                tmp = fi.readlines()
+                val_num = len(tmp)
+            st.session_state.dataset[f] = {}
+            st.session_state.dataset[f]["tag"] = tag
+            st.session_state.dataset[f]["train"] = train_num
+            st.session_state.dataset[f]["val"] = val_num
 
 def main_ui_layout():
     first, second = st.columns([1,2], gap='small')
     if "dataset" not in st.session_state.keys():
         st.session_state.dataset = {}
-        folders = os.listdir(DATASET_DIR)
-        for f in folders:
-            if "dataset" in f:
-                try:
-                    with open(os.path.join(DATASET_DIR, f, "tag"), "r") as fi:
-                        tag = fi.read().replace("\n", "")
-                except:
-                    tag = "CAN NOT FIND"
-
-                with open(os.path.join(DATASET_DIR, f, "train.txt"), "r") as fi:
-                    tmp = fi.readlines()
-                    train_num = len(tmp)
-                with open(os.path.join(DATASET_DIR, f, "val.txt"), "r") as fi:
-                    tmp = fi.readlines()
-                    val_num = len(tmp)
-                st.session_state.dataset[f] = {}
-                st.session_state.dataset[f]["tag"] = tag
-                st.session_state.dataset[f]["train"] = train_num
-                st.session_state.dataset[f]["val"] = val_num
+        update_dataset_table()
 
     with first:
         st.markdown("### 数据集管理")
@@ -267,6 +270,7 @@ def main_ui_layout():
         upload_file = st.file_uploader("上传新数据", "tar.gz", label_visibility = "collapsed")
         if upload_file is not None:
             save_and_utgz_uploaded_file(upload_file)
+            update_dataset_table()
         st.markdown("-----")
         data_df, scene_num, train_sum, val_sum = dataset_to_pd_frame(st.session_state.dataset)
         st.markdown("**scene_num:** %d\t **train_num:** %d\t **val_sum:** %d"%(scene_num, train_sum, val_sum))
