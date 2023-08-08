@@ -320,6 +320,10 @@ def main_ui_layout():
                     st.session_state.target_train_machine + ":6001"),
                                 unsafe_allow_html=True)
 
+                st.markdown("[%s](http://%s)"%("查看模型管理页面",
+                    (HOST_IP + ":22222/download")),
+                                unsafe_allow_html=True)
+
 
                 if len(st.session_state.selected_dataset) == 0:
                     selected_dataset_str = "all"

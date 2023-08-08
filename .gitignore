@@ -9,3 +9,4 @@ template/
 *.pkl
 download_result/
 template/
+nohup.out
