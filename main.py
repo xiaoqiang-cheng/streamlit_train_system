@@ -8,6 +8,9 @@ import os
 import pandas as pd
 from streamlit_react_flow import react_flow
 
+# from streamlit_autorefresh import st_autorefresh
+
+
 
 st.session_state.task_progress = -1
 st.session_state.task_status = False
@@ -35,6 +38,9 @@ st.set_page_config(layout="wide",
             page_title="Light Train System",
             page_icon="📡",
             )
+
+
+# st_autorefresh(interval=5000, key="axaakjbsdfbipjsdfasbdhj")
 
 
 def creat_train_pipeline(nodes = [], progress = 0):
