@@ -107,6 +107,7 @@ def create_input_txt_with_label_in_main(label, default_value):
     return ret
 
 def create_selectbox_with_label(label, default_value):
+    default_value.sort()
     first, second = st.sidebar.columns([1,2], gap='small')
     with first:
         st.markdown("### "+label)
@@ -192,12 +193,13 @@ def stop_train_task():
     st.session_state.task_progress = -1
 
     SEND_LOG_MSG.info("clear cache and stop train task.")
-    # kill local process remote process
-    os.system("pkill light_remote_train")
-    os.system("killall ssh")
-    os.system("killall sshpass")
-    # clear cache
-    os.system("rm -r %s"%PROC_DIR)
+    for i in range(5):
+        # kill local process remote process
+        os.system("killall ssh")
+        os.system("pkill light_remote_train")
+        os.system("killall sshpass")
+        os.system("rm -r %s"%PROC_DIR)
+        time.sleep(0.01)
 
 def start_train_task():
     if st.session_state.task_status: return
