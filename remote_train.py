@@ -158,6 +158,7 @@ def model_deploy(remote_ip, project_name):
 
     candidate_list = [
         ["xavier", "trt8"],
+        ["1080ti", "trt8"],
         ["tx2", "trt4"],
         ["1080ti", "trt4"],
     ]
