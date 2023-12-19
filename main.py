@@ -114,6 +114,7 @@ def create_input_txt_with_label_in_main(label, default_value):
 
 def create_selectbox_with_label(label, default_value):
     default_value.sort()
+    default_value = default_value[::-1]
     first, second = st.sidebar.columns([1,2], gap='small')
     with first:
         st.markdown("### "+label)
@@ -146,7 +147,7 @@ def sidebar_ui_layout():
     target_train_project_name = create_input_txt_with_label("project name", "uisee")
     target_train_project_name += get_datatime_tail()
     target_train_epoch = create_input_txt_with_label("epoch", "32")
-    target_train_worker_num = create_input_txt_with_label("worker num", "20")
+    target_train_worker_num = create_input_txt_with_label("worker num", "4")
     target_train_batch_size = create_input_txt_with_label("batch size/gpu", "6")
     target_train_base_model = create_selectbox_with_label("base model", os.listdir(MODEL_REPO_DIR))
 

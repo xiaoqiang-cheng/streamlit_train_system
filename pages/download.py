@@ -52,7 +52,7 @@ for folder in model_history_list:
         mAP_curve,  columns=["mAP"])
     st.line_chart(chart_data, height = 200)
 
-    col_layouts = st.columns(6)
+    col_layouts = st.columns(len(curr_results_dir_list))
 
     for index, engine in enumerate(curr_results_dir_list):
         engine_dir = os.path.join(curr_results_dir, engine)
