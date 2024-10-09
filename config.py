@@ -1,26 +1,26 @@
 
-HOST_IP = "10.0.93.231"
+HOST_IP = "10.11.1.151"
 
 train_machine_info = {
-    "10.0.93.231" : ["uisee@10.0.93.231",   "8888",         "22"],
-    "10.0.89.150" : ["test@10.0.89.150",    "test135",      "22"],
-    # "10.9.100.30" : ["radmin@10.9.100.30",  "uisee@2019",   "22"],   # conda 不正常
-    # "10.9.100.31" : ["user@10.9.100.31",    "lp@uisee",     "22"],   # 没有空间了
-    "10.9.100.32" : ["user@10.9.100.32",    "lp@uisee",     "22"],
-    "10.9.100.34" : ["user@10.9.100.34",    "123456",       "22"],
-    # "10.9.100.36" : ["user@10.9.100.36",    "123456",       "22"],   # 看上去很多人会用
-    # "10.9.160.200": ["radmin@10.9.160.200", "uisee@123",    "22"]    # 大显卡，舍不得
+    "10.11.1.151" : ["uisee@10.11.1.151",   "zxcvbnm,.",     "22"],
+    "10.9.160.200": ["radmin@10.9.160.200", "uisee@3090",    "22"]
+    # "10.0.89.150" : ["test@10.0.89.150",    "test135",      "22"],
+    # # "10.9.100.30" : ["radmin@10.9.100.30",  "uisee@2019",   "22"],   # conda 不正常
+    # # "10.9.100.31" : ["user@10.9.100.31",    "lp@uisee",     "22"],   # 没有空间了
+    # "10.9.100.32" : ["user@10.9.100.32",    "lp@uisee",     "22"],
+    # "10.9.100.34" : ["user@10.9.100.34",    "123456",       "22"],
+    # # "10.9.100.36" : ["user@10.9.100.36",    "123456",       "22"],   # 看上去很多人会用
 }
 
 train_machine_tool_dir = {
-    "10.0.93.231" :  "/home/uisee/MainDisk/TrafficLight/yolov7",
-    "10.0.89.150" :  "/storage/cxq/yolov7",
-    # "10.9.100.30" :  "",
-    # "10.9.100.31" :  "",
-    "10.9.100.32" :  "/sdc/cxq/yolov7",
-    "10.9.100.34" :  "/data3/cxq/yolov7",
-    # "10.9.100.36" :  "",
-    # "10.9.160.200":  "",
+    "10.11.1.151" :  "/home/uisee/MainDisk/TrafficLight/yolov7",
+    "10.9.160.200":  "/home/radmin/user_data/xiaoqiang/yolov7",
+    # "10.0.89.150" :  "/storage/cxq/yolov7",
+    # # "10.9.100.30" :  "",
+    # # "10.9.100.31" :  "",
+    # "10.9.100.32" :  "/sdc/cxq/yolov7",
+    # "10.9.100.34" :  "/data3/cxq/yolov7",
+    # # "10.9.100.36" :  "",
 }
 
 launch_train_template = '''
@@ -39,8 +39,12 @@ killall tensorboard
 tensorboard --logdir runs/train --port 6001 --bind_all &
 
 echo "launch_train"
-python train.py --workers $worker_num --device $device_num --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --hyp data/hyp.finetune.yaml --weights $base_model --notest
+# python train.py --workers $worker_num --device $device_num --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --hyp data/hyp.finetune.yaml --weights $base_model --notest
+
+python -m torch.distributed.launch --nproc_per_node 8 --master_port 9527 train.py --workers  $worker_num --device  $device_num --sync-bn --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --weights $base_model --hyp $train_hyp
+
 killall tensorboard
+rm -r $project_name.log
 '''
 
 machine_info = {

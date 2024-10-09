@@ -14,6 +14,8 @@ from streamlit_react_flow import react_flow
 
 st.session_state.task_progress = -1
 st.session_state.task_status = False
+st.session_state.run_status = True
+st.session_state.last_train_cfg = []
 
 if "rerun" not in st.session_state.keys():
     st.session_state["rerun"] = True
@@ -31,6 +33,10 @@ if "rerun" not in st.session_state.keys():
 if os.path.exists(PROC_DIR):
     train_task_progress = deserialize_data(PROC_DIR)
     st.session_state.task_progress = train_task_progress['task_progress']
+    if "status" in train_task_progress.keys():
+        st.session_state.run_status = train_task_progress['status']
+    else:
+        st.session_state.run_status = False
     st.session_state.task_status = True
 
 
@@ -43,9 +49,12 @@ st.set_page_config(layout="wide",
 # st_autorefresh(interval=5000, key="axaakjbsdfbipjsdfasbdhj")
 
 
-def creat_train_pipeline(nodes = [], progress = 0):
+def creat_train_pipeline(nodes = [], progress = 0, run_status = True):
     elements = []
-    special_color = "#ffc500"
+    if run_status:
+        special_color = "#ffc500"
+    else:
+        special_color = "#ff0000"
 
     for i, n in enumerate(nodes):
         node = {
@@ -84,9 +93,9 @@ def creat_train_pipeline(nodes = [], progress = 0):
 def creat_progress_with_label(gpu_dict:dict):
     ret = []
     for key, val in gpu_dict.items():
-        first, second, third = st.sidebar.columns([1,2,1], gap='small')
+        first, second, third = st.sidebar.columns([1,2,2], gap='small')
         with first:
-            status = st.checkbox("gpu %d:"%key)
+            status = st.checkbox("G%d:"%key)
         with second:
             st.progress(int(val["percentage"]))
         with third:
@@ -114,7 +123,7 @@ def create_input_txt_with_label_in_main(label, default_value):
 
 def create_selectbox_with_label(label, default_value):
     default_value.sort()
-    default_value = default_value[::-1]
+    default_value = ["scratch"] + default_value[::-1]
     first, second = st.sidebar.columns([1,2], gap='small')
     with first:
         st.markdown("### "+label)
@@ -131,7 +140,13 @@ def sidebar_ui_layout():
     st.sidebar.markdown("# 红绿灯模型在线训练")
     st.sidebar.markdown("------")
     st.sidebar.markdown("## 选择服务器")
-    target_train_machine = st.sidebar.selectbox("选择服务器", list(train_machine_info.keys()), label_visibility="collapsed")
+    machine_list = list(train_machine_info.keys())
+    if not os.path.exists(PROC_DIR) or "target_train_machine" not in st.session_state.keys():
+        default_machine_index = 0
+    else:
+        default_machine_index = machine_list.index(st.session_state.target_train_machine)
+    target_train_machine = st.sidebar.selectbox("选择服务器", machine_list, index=default_machine_index, label_visibility="collapsed")
+
     if "target_train_machine" not in st.session_state.keys() or target_train_machine != st.session_state.target_train_machine:
         st.session_state.target_train_machine = target_train_machine
         gpus_info = get_remote_gpus_info(target_train_machine)
@@ -147,8 +162,8 @@ def sidebar_ui_layout():
     target_train_project_name = create_input_txt_with_label("project name", "uisee")
     target_train_project_name += get_datatime_tail()
     target_train_epoch = create_input_txt_with_label("epoch", "32")
-    target_train_worker_num = create_input_txt_with_label("worker num", "4")
-    target_train_batch_size = create_input_txt_with_label("batch size/gpu", "6")
+    target_train_worker_num = create_input_txt_with_label("worker num", "32")
+    target_train_batch_size = create_input_txt_with_label("batch size/gpu", "16")
     target_train_base_model = create_selectbox_with_label("base model", os.listdir(MODEL_REPO_DIR))
 
     st.session_state.target_train_gpu = ",".join(map(str, target_train_gpu))
@@ -156,7 +171,13 @@ def sidebar_ui_layout():
     st.session_state.target_train_epoch = target_train_epoch
     st.session_state.target_train_worker_num = target_train_worker_num
     st.session_state.target_train_batch_size = str(int(target_train_batch_size) * len(target_train_gpu))
-    st.session_state.target_train_base_model = target_train_base_model
+    if target_train_base_model == "scratch":
+        st.session_state.target_train_base_model = ''
+        # st.session_state.target_train_epoch = "300"
+        st.session_state.target_train_hyp = "data/hyp.scratch.tiny.yaml"
+    else:
+        st.session_state.target_train_base_model = target_train_base_model
+        st.session_state.target_train_hyp = "data/hyp.finetune.yaml"
 
 def dataset_to_pd_frame(dataset_dict):
     '''
@@ -203,7 +224,7 @@ def stop_train_task():
     for i in range(5):
         # kill local process remote process
         os.system("killall ssh")
-        os.system("pkill light_remote_train")
+        os.system("killall light_remote_train")
         os.system("killall sshpass")
         os.system("rm -r %s"%PROC_DIR)
         time.sleep(0.01)
@@ -223,16 +244,29 @@ def start_train_task():
             last_launch_script = last_launch_script.replace("$batch_size", st.session_state.target_train_batch_size)
             last_launch_script = last_launch_script.replace("$epoch_num", st.session_state.target_train_epoch)
             last_launch_script = last_launch_script.replace("$project_name", st.session_state.target_train_project_name)
-            last_launch_script = last_launch_script.replace("$base_model", os.path.join(MODEL_REPO_DIR, st.session_state.target_train_base_model + ".pt"))
+
+            if st.session_state.target_train_base_model == '':
+                last_launch_script = last_launch_script.replace("$base_model", '\'\'')
+            else:
+                last_launch_script = last_launch_script.replace("$base_model", os.path.join(MODEL_REPO_DIR, st.session_state.target_train_base_model + ".pt"))
+
+            last_launch_script = last_launch_script.replace("$train_hyp", st.session_state.target_train_hyp)
             SEND_LOG_MSG.info(last_launch_script)
             f.write(last_launch_script)
 
             st.session_state.task_progress = 0
-            exec_script_task("remote_train",
-                ['--email', st.session_state.user_email,
-                '--remote-ip', st.session_state.target_train_machine,
-                '--project', st.session_state.target_train_project_name,
-                '--base-model', st.session_state.target_train_base_model])
+            if st.session_state.target_train_base_model != "":
+                train_cfg = ['--email', st.session_state.user_email,
+                    '--remote-ip', st.session_state.target_train_machine,
+                    '--project', st.session_state.target_train_project_name,
+                    '--base-model', st.session_state.target_train_base_model]
+            else:
+                train_cfg = ['--email', st.session_state.user_email,
+                        '--remote-ip', st.session_state.target_train_machine,
+                        '--project', st.session_state.target_train_project_name
+                    ]
+            st.session_state.last_train_cfg = train_cfg
+            exec_script_task("remote_train", train_cfg)
     else:
         SEND_LOG_MSG.warning("have launch train, do not click again!")
 
@@ -352,8 +386,12 @@ def main_ui_layout():
 
         with col2:
             with st.expander("查看训练进度", expanded=True):
-                    creat_train_pipeline(["启动流程", "数据同步", "更新模型", "量化部署", "发送邮件", "结束流程"],
-                                st.session_state.task_progress)
+                continue_button = st.button("任务中断，点击继续", disabled=st.session_state.run_status, use_container_width=True)
+                if continue_button:
+                    exec_script_task("remote_train",
+                        st.session_state.last_train_cfg + ["--start-progress", st.session_state.task_progress])
+                creat_train_pipeline(["启动流程", "数据同步", "更新模型", "量化部署", "发送邮件", "结束流程"],
+                                st.session_state.task_progress, run_status = st.session_state.run_status)
 
 
 def test():

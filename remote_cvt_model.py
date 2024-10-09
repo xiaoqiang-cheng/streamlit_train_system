@@ -7,7 +7,7 @@ from send import send_mail_personal
 from utils import *
 
 def push_file(local_path, remote_addr, remote_path, passwd, port):
-    command = "sshpass -p %s scp -r -P %s %s %s:%s"%(passwd, port, local_path, remote_addr, remote_path)
+    command = "sshpass -p %s scp -r -o StrictHostKeyChecking=no -P %s %s %s:%s"%(passwd, port, local_path, remote_addr, remote_path)
     SEND_LOG_MSG.info(command)
     process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE)
     output, error = process.communicate()
@@ -18,7 +18,7 @@ def push_file(local_path, remote_addr, remote_path, passwd, port):
         return False
 
 def pull_file(local_path, remote_addr, remote_path, passwd, port):
-    command = "sshpass -p %s scp -r -P %s %s:%s %s"%(passwd, port, remote_addr, remote_path, local_path)
+    command = "sshpass -p %s scp -r -o StrictHostKeyChecking=no -P %s %s:%s %s"%(passwd, port, remote_addr, remote_path, local_path)
     SEND_LOG_MSG.info(command)
     process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE)
     output, error = process.communicate()
@@ -29,7 +29,7 @@ def pull_file(local_path, remote_addr, remote_path, passwd, port):
 
 def exec_remote_cmd(ctype, cmd):
     remote_addr, pwd, port = machine_info[ctype]
-    command = "sshpass -p %s ssh -p%s %s \"%s\""%(pwd, port, remote_addr, cmd)
+    command = "sshpass -p %s ssh -o StrictHostKeyChecking=no -p%s %s \"%s\""%(pwd, port, remote_addr, cmd)
     SEND_LOG_MSG.info(command)
     process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE)
     output, error = process.communicate()
