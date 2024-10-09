@@ -7,15 +7,33 @@ from remote_train import get_remote_gpus_info
 import os
 import pandas as pd
 from streamlit_react_flow import react_flow
+import streamlit_authenticator as stauth
 
-# from streamlit_autorefresh import st_autorefresh
+st.set_page_config(layout="wide",
+            page_title="Light Train System",
+            page_icon="📡",
+            )
 
+# 用户信息，后续可以来自DB
+names = ['程晓强', '管理员'] # 用户名
+usernames = ['cxq10490', 'admin']  # 登录名
+passwords = ['888888', '888888']  #登录密码
+# 对密码进行加密操作，后续将这个存放在credentials中
+hashed_passwords = stauth.Hasher(passwords).generate()
 
+# 定义字典，初始化字典
+credentials = {'usernames': {}}
+# 生成服务器端的用户身份凭证信息
+for i in range(0, len(names)):
+    credentials['usernames'][usernames[i]] = {'name': names[i], 'password': hashed_passwords[i]}
+authenticator = stauth.Authenticate(credentials, 'some_cookie_name', 'some_signature_key', cookie_expiry_days=0)
+name, authentication_status, username = authenticator.login('Login', 'main')
 
 st.session_state.task_progress = -1
 st.session_state.task_status = False
 st.session_state.run_status = True
 st.session_state.last_train_cfg = []
+st.session_state.machine_gpus_info = {}
 
 if "rerun" not in st.session_state.keys():
     st.session_state["rerun"] = True
@@ -27,7 +45,7 @@ if "rerun" not in st.session_state.keys():
         pass
     else:
         for key, value in history_config.items():
-            st.session_state[key] = value
+            st.session_state['key'] = value
 
 
 if os.path.exists(PROC_DIR):
@@ -39,11 +57,6 @@ if os.path.exists(PROC_DIR):
         st.session_state.run_status = False
     st.session_state.task_status = True
 
-
-st.set_page_config(layout="wide",
-            page_title="Light Train System",
-            page_icon="📡",
-            )
 
 
 # st_autorefresh(interval=5000, key="axaakjbsdfbipjsdfasbdhj")
@@ -147,7 +160,7 @@ def sidebar_ui_layout():
         default_machine_index = machine_list.index(st.session_state.target_train_machine)
     target_train_machine = st.sidebar.selectbox("选择服务器", machine_list, index=default_machine_index, label_visibility="collapsed")
 
-    if "target_train_machine" not in st.session_state.keys() or target_train_machine != st.session_state.target_train_machine:
+    if "target_train_machine" not in st.session_state.keys() or target_train_machine != st.session_state.target_train_machine or st.session_state["rerun"]:
         st.session_state.target_train_machine = target_train_machine
         gpus_info = get_remote_gpus_info(target_train_machine)
         try:
@@ -398,11 +411,17 @@ def test():
     pass
 
 
-def main():
-    sidebar_ui_layout()
-    main_ui_layout()
+def main(authentication_status):
+    if authentication_status:
+        sidebar_ui_layout()
+        main_ui_layout()
+        serialize_data(st.session_state.to_dict(), "database.pkl")
+    elif authentication_status == None:
+        st.info("Please input username and password")
+    else:
+        st.error('Username/password is incorrect')
 
 
-main()
-serialize_data(st.session_state.to_dict(), "database.pkl")
+main(authentication_status)
+
 

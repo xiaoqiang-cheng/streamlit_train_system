@@ -42,7 +42,7 @@ def create_download_button(target_path):
             mime="application/octet-stream")
     return ret
 
-
+@st.cache_data
 def read_results_list(results_path):
     ret = []
     with open(results_path, "r") as f:

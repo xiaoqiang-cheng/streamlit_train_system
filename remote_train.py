@@ -115,7 +115,7 @@ def launch_train(remote_ip, base_model, project_name):
 
     # 在此处等待进程完成
     while pull_file(TASK_INFO_DIR, remote_addr, os.path.join(remote_path, train_log_name), passwd, port):
-        time.sleep(10)
+        time.sleep(20)
 
     return True
 
