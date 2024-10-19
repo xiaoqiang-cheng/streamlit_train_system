@@ -239,6 +239,9 @@ def main(email, remote_ip, project_name, base_model, start_progress = -1):
         train_task_progress["status"] = True
         train_task_progress["task_progress"] = 0
         serialize_data(train_task_progress, PROC_DIR)
+    else:
+        train_task_progress=deserialize_data(PROC_DIR)
+        train_task_progress["status"] = True
 
     # 数据同步
     if start_progress <= 1:
@@ -248,6 +251,7 @@ def main(email, remote_ip, project_name, base_model, start_progress = -1):
         ret = data_sync(remote_ip)
         train_task_progress["status"] = ret
         if not ret:
+            serialize_data(train_task_progress, PROC_DIR)
             return False
 
     # 开始训练
@@ -258,6 +262,7 @@ def main(email, remote_ip, project_name, base_model, start_progress = -1):
         ret = launch_train(remote_ip, base_model, project_name)
         train_task_progress["status"] = ret
         if not ret:
+            serialize_data(train_task_progress, PROC_DIR)
             return False
 
     #量化部署
@@ -268,6 +273,7 @@ def main(email, remote_ip, project_name, base_model, start_progress = -1):
         ret = model_deploy(remote_ip, project_name)
         train_task_progress["status"] = ret
         if not ret:
+            serialize_data(train_task_progress, PROC_DIR)
             return False
 
     #发送邮件
@@ -278,6 +284,7 @@ def main(email, remote_ip, project_name, base_model, start_progress = -1):
         ret = send_email(email, project_name)
         train_task_progress["status"] = ret
         if not ret:
+            serialize_data(train_task_progress, PROC_DIR)
             return False
 
     train_task_progress["task_progress"] = -1

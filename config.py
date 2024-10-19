@@ -1,8 +1,8 @@
 
-HOST_IP = "10.11.1.151"
+HOST_IP = "10.11.1.159"
 
 train_machine_info = {
-    "10.11.1.151" : ["uisee@10.11.1.151",   "zxcvbnm,.",     "22"],
+    "10.11.1.159" : ["uisee@10.11.1.159",   "zxcvbnm,.",     "22"],
     "10.9.160.200": ["radmin@10.9.160.200", "uisee@3090",    "22"]
     # "10.0.89.150" : ["test@10.0.89.150",    "test135",      "22"],
     # # "10.9.100.30" : ["radmin@10.9.100.30",  "uisee@2019",   "22"],   # conda 不正常
@@ -13,7 +13,7 @@ train_machine_info = {
 }
 
 train_machine_tool_dir = {
-    "10.11.1.151" :  "/home/uisee/MainDisk/TrafficLight/yolov7",
+    "10.11.1.159" :  "/home/uisee/MainDisk/TrafficLight/yolov7",
     "10.9.160.200":  "/home/radmin/user_data/xiaoqiang/yolov7",
     # "10.0.89.150" :  "/storage/cxq/yolov7",
     # # "10.9.100.30" :  "",

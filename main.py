@@ -15,20 +15,21 @@ st.set_page_config(layout="wide",
             )
 
 # 用户信息，后续可以来自DB
-names = ['程晓强', '管理员'] # 用户名
-usernames = ['cxq10490', 'admin']  # 登录名
-passwords = ['888888', '888888']  #登录密码
+#names = ['程晓强', '管理员'] # 用户名
+#usernames = ['cxq10490', 'admin']  # 登录名
+#passwords = ['888888', '888888']  #登录密码
 # 对密码进行加密操作，后续将这个存放在credentials中
-hashed_passwords = stauth.Hasher(passwords).generate()
+#hashed_passwords = stauth.Hasher(passwords).generate()
 
 # 定义字典，初始化字典
-credentials = {'usernames': {}}
+#credentials = {'usernames': {}}
 # 生成服务器端的用户身份凭证信息
-for i in range(0, len(names)):
-    credentials['usernames'][usernames[i]] = {'name': names[i], 'password': hashed_passwords[i]}
-authenticator = stauth.Authenticate(credentials, 'some_cookie_name', 'some_signature_key', cookie_expiry_days=0)
-name, authentication_status, username = authenticator.login('Login', 'main')
+#for i in range(0, len(names)):
+#    credentials['usernames'][usernames[i]] = {'name': names[i], 'password': hashed_passwords[i]}
+#authenticator = stauth.Authenticate(credentials, 'some_cookie_name', 'some_signature_key', cookie_expiry_days=1)
+#name, authentication_status, username = authenticator.login('Login', 'main')
 
+authenticator = 0
 st.session_state.task_progress = -1
 st.session_state.task_status = False
 st.session_state.run_status = True
@@ -221,6 +222,7 @@ def dataset_to_pd_frame(dataset_dict):
 def exec_script_task(task_name, args = []):
     script_name = task_name + ".py"
     target_args = [script_name] + args
+    print(target_args)
     target_args_str = " ".join(target_args)
     cmd = "nohup python %s > "%target_args_str + "%s/%s.out 2>&1 & "%(TASK_INFO_DIR, task_name)
     SEND_LOG_MSG.info(cmd)
@@ -278,7 +280,9 @@ def start_train_task():
                         '--remote-ip', st.session_state.target_train_machine,
                         '--project', st.session_state.target_train_project_name
                     ]
+            
             st.session_state.last_train_cfg = train_cfg
+            serialize_data(train_cfg, "train_cfg.pkl")
             exec_script_task("remote_train", train_cfg)
     else:
         SEND_LOG_MSG.warning("have launch train, do not click again!")
@@ -399,10 +403,17 @@ def main_ui_layout():
 
         with col2:
             with st.expander("查看训练进度", expanded=True):
+                #creat_train_pipeline(["启动流程", "数据同步", "更新模型", "量化部署", "发送邮件", "结束流程"],
+                #                st.session_state.task_progress, run_status = st.session_state.run_status)
+
                 continue_button = st.button("任务中断，点击继续", disabled=st.session_state.run_status, use_container_width=True)
                 if continue_button:
+                    train_cfg = deserialize_data("train_cfg.pkl")
+                    print(train_cfg)
+                    st.session_state.run_status = True
                     exec_script_task("remote_train",
-                        st.session_state.last_train_cfg + ["--start-progress", st.session_state.task_progress])
+                        train_cfg + ["--start-progress", str(st.session_state.task_progress)])
+                print( st.session_state.task_progress, st.session_state.run_status)
                 creat_train_pipeline(["启动流程", "数据同步", "更新模型", "量化部署", "发送邮件", "结束流程"],
                                 st.session_state.task_progress, run_status = st.session_state.run_status)
 
@@ -411,17 +422,17 @@ def test():
     pass
 
 
-def main(authentication_status):
-    if authentication_status:
-        sidebar_ui_layout()
-        main_ui_layout()
-        serialize_data(st.session_state.to_dict(), "database.pkl")
-    elif authentication_status == None:
-        st.info("Please input username and password")
-    else:
-        st.error('Username/password is incorrect')
+def main():
+    #if authentication_status:
+    sidebar_ui_layout()
+    main_ui_layout()
+    serialize_data(st.session_state.to_dict(), "database.pkl")
+    #elif authentication_status == None:
+    #    st.info("Please input username and password")
+    #else:
+    #    st.error('Username/password is incorrect')
 
 
-main(authentication_status)
+main()
 
 
