@@ -1,32 +1,34 @@
+import socket
 
-HOST_IP = "10.11.1.159"
+def  get_localhost_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    return s.getsockname()[0]
+
+HOST_IP = get_localhost_ip()
+
+owners_email = [
+    "xiaoqiang.cheng@uisee.com",
+    "xianlou.huang@uisee.com"
+]
 
 train_machine_info = {
-    "10.11.1.159" : ["uisee@10.11.1.159",   "zxcvbnm,.",     "22"],
-    "10.9.160.200": ["radmin@10.9.160.200", "uisee@3090",    "22"]
-    # "10.0.89.150" : ["test@10.0.89.150",    "test135",      "22"],
-    # # "10.9.100.30" : ["radmin@10.9.100.30",  "uisee@2019",   "22"],   # conda 不正常
-    # # "10.9.100.31" : ["user@10.9.100.31",    "lp@uisee",     "22"],   # 没有空间了
-    # "10.9.100.32" : ["user@10.9.100.32",    "lp@uisee",     "22"],
-    # "10.9.100.34" : ["user@10.9.100.34",    "123456",       "22"],
-    # # "10.9.100.36" : ["user@10.9.100.36",    "123456",       "22"],   # 看上去很多人会用
+    "10.9.160.200": ["radmin@10.9.160.200", "uisee@3090",    "22"],
+    "10.9.100.43" : ["root@10.9.100.43", "123456", "10490"],
+    "10.9.100.42" : ["root@10.9.100.42", "123456", "10490"]
 }
 
 train_machine_tool_dir = {
-    "10.11.1.159" :  "/home/uisee/MainDisk/TrafficLight/yolov7",
     "10.9.160.200":  "/home/radmin/user_data/xiaoqiang/yolov7",
-    # "10.0.89.150" :  "/storage/cxq/yolov7",
-    # # "10.9.100.30" :  "",
-    # # "10.9.100.31" :  "",
-    # "10.9.100.32" :  "/sdc/cxq/yolov7",
-    # "10.9.100.34" :  "/data3/cxq/yolov7",
-    # # "10.9.100.36" :  "",
+    "10.9.100.43" : "/root/yolov7",
+    "10.9.100.42" : "/root/yolov7",
 }
 
 launch_train_template = '''
 #!/bin/bash
 echo "remove history cache"
 rm -r dataset/**/*cache
+rm -r latest.log
 
 echo "activate python env"
 conda activate yolov7
@@ -37,14 +39,15 @@ python gen_data_yaml.py $dataset_list
 echo "launch tensorboard"
 killall tensorboard
 tensorboard --logdir runs/train --port 6001 --bind_all &
+export CUDA_VISIBLE_DEVICES=$device_num
 
 echo "launch_train"
 # python train.py --workers $worker_num --device $device_num --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --hyp data/hyp.finetune.yaml --weights $base_model --notest
 
-python -m torch.distributed.launch --nproc_per_node 8 --master_port 9527 train.py --workers  $worker_num --device  $device_num --sync-bn --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --weights $base_model --hyp $train_hyp
+python -m torch.distributed.launch --nproc_per_node $gpu_num --master_port 9527 train.py --workers  $worker_num --device  $device_num --sync-bn --batch-size $batch_size --data data/uisee_data.yaml --img 1280 1280 --epochs $epoch_num --cfg cfg/training/yolov7-tiny-relu.yaml --name $project_name --weights $base_model --hyp $train_hyp
 
 killall tensorboard
-rm -r $project_name.log
+mv $project_name.log latest.log
 '''
 
 machine_info = {
@@ -105,3 +108,6 @@ if_not_exist_create(UPLOAD_TMP_DIR)
 if_not_exist_create(TEMPLATE_DIR)
 if_not_exist_create(DOWNLOAD_RESULT)
 
+
+if __name__ == "__main__":
+    get_localhost_ip()

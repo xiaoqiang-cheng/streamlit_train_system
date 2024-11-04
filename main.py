@@ -181,6 +181,7 @@ def sidebar_ui_layout():
     target_train_base_model = create_selectbox_with_label("base model", os.listdir(MODEL_REPO_DIR))
 
     st.session_state.target_train_gpu = ",".join(map(str, target_train_gpu))
+    print(target_train_gpu, st.session_state.target_train_gpu)
     st.session_state.target_train_project_name = target_train_project_name
     st.session_state.target_train_epoch = target_train_epoch
     st.session_state.target_train_worker_num = target_train_worker_num
@@ -255,6 +256,7 @@ def start_train_task():
 
             last_launch_script = last_launch_script.replace("$dataset_list", selected_dataset_str)
             last_launch_script = last_launch_script.replace("$worker_num", st.session_state.target_train_worker_num)
+            last_launch_script = last_launch_script.replace("$gpu_num", str(len(st.session_state.target_train_gpu.split(','))))
             last_launch_script = last_launch_script.replace("$device_num", st.session_state.target_train_gpu)
             last_launch_script = last_launch_script.replace("$batch_size", st.session_state.target_train_batch_size)
             last_launch_script = last_launch_script.replace("$epoch_num", st.session_state.target_train_epoch)
@@ -280,7 +282,7 @@ def start_train_task():
                         '--remote-ip', st.session_state.target_train_machine,
                         '--project', st.session_state.target_train_project_name
                     ]
-            
+
             st.session_state.last_train_cfg = train_cfg
             serialize_data(train_cfg, "train_cfg.pkl")
             exec_script_task("remote_train", train_cfg)
@@ -355,7 +357,8 @@ def main_ui_layout():
         col1, col2 = st.columns([1, 1], gap='small')
         with col1:
             with st.expander("训练配置", expanded=True):
-                st.session_state.user_email = create_input_txt_with_label_in_main("**负责人邮箱**：(用于接收训练结果信息)", "xiaoqiang.cheng@uisee.com")
+                st.session_state.user_email = st.selectbox("**负责人邮箱**：(用于接收训练结果信息)",
+                        owners_email, label_visibility="collapsed")
                 if not isValid(st.session_state.user_email):
                     st.info("请输入有效的邮箱地址！")
                     return
